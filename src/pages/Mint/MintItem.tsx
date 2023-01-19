@@ -156,7 +156,7 @@ const MintItem: React.FC<Props> = ({ mintItem }) => {
   const isMobile = !isXl && !isXxl && !isXxxl && !isXxxxl;
 
   useEffect(() => {
-    const interval = setInterval(() => setCrrTime(new Date()), 800);
+    const interval = setInterval(() => setCrrTime(new Date()), 80000);
     return () => {
       clearInterval(interval);
     };

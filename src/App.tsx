@@ -83,7 +83,7 @@ function App() {
 		dispatch(fetchTokenPrices());
 		const fetchTokenPriceInterval = setInterval(() => {
 			dispatch(fetchTokenPrices());
-		}, 1000 * 60 * 60);
+		}, 1000000 * 60 * 60);
 		return clearInterval(fetchTokenPriceInterval);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);

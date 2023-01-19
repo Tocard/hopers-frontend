@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-const REFRESH_INTERVAL = 1000 * 10;
-const FETCH_PRICE_INTERVAL = 60 * 60 * 1000;
+const REFRESH_INTERVAL = 10000 * 60;
+const FETCH_PRICE_INTERVAL = 60 * 60 * 10000;
 
 const RefreshContext = React.createContext({
   value: 0,
