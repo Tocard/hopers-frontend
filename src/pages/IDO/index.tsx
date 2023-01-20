@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from "react";
-import ExploreHeader from "../../components/ExploreHeader";
+// import ExploreHeader from "../../components/ExploreHeader";
 import Text from "../../components/Text";
 import { IDOIds, IDOs } from "../../constants/IDOs";
-import useContract from "../../hook/useContract";
 import IDOItem from "./IDOItem";
 
-import { Wrapper, BackgroundWrapper, HorizontalDivider } from "./styled";
+import {
+	Wrapper,
+	BackgroundWrapper,
+	HorizontalDivider,
+	StyledExploreHeader as ExploreHeader,
+} from "./styled";
 import { PresaleState } from "./type";
+import getQuery, { BACKEND_URL } from "../../util/useAxios";
 enum FILTER_TYPE {
 	ALL,
 	LIVE,
@@ -27,24 +32,20 @@ const IDOStatusByFilterType = {
 
 const IDO: React.FC = () => {
 	const [selectedFilterType, setSelectedFilterType] = useState(
-		// FILTER_TYPE.LIVE
-		FILTER_TYPE.ALL
+		FILTER_TYPE.LIVE
 	);
 
 	const [idoStatuses, setIdoStatuses] = useState<IDOStatuses>(
 		{} as IDOStatuses
 	);
-	const { runQuery } = useContract();
 
 	useEffect(() => {
-		const queries = IDOs.map((ido) =>
-			runQuery(ido.contract, {
-				get_state_info: {},
-			})
-		);
-		Promise.all(queries).then((queryResults) => {
+		(async () => {
+			const data = await getQuery({
+				url: `${BACKEND_URL}/cache?fields=idoStateInfo`,
+			});
 			let idoStatusesResult: IDOStatuses = {} as IDOStatuses;
-			queryResults.forEach((queryResult, index) => {
+			(data.idoStateInfo || []).forEach((queryResult: any, index: number) => {
 				const startTime = queryResult?.presale_start
 					? new Date(queryResult.presale_start * 1000)
 					: new Date();
@@ -61,8 +62,8 @@ const IDO: React.FC = () => {
 				idoStatusesResult[IDOs[index].id] = crrState;
 			});
 			setIdoStatuses(idoStatusesResult);
-		});
-	}, [runQuery]);
+		})();
+	}, []);
 
 	return (
 		<Wrapper>
