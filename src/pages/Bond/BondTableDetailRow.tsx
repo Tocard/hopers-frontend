@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { useWalletManager } from "@noahsaso/cosmodal";
 import { useAppSelector } from "../../app/hooks";
@@ -6,8 +6,8 @@ import Flex from "../../components/Flex";
 import { ExternalLinkIcon } from "../../components/SvgIcons";
 import Text from "../../components/Text";
 import { TPool } from "../../types/pools";
-import { TokenStatus, getTokenName } from "../../types/tokens";
-import { DetailRowBlock, StyledButton as Button } from "./styled";
+import { TokenStatus, TokenType, getTokenName } from "../../types/tokens";
+import { DetailRowBlock, StyledButton as Button, SmallText } from "./styled";
 import { CosmostationWalletContext } from "../../context/Wallet";
 import {
 	ConnectedWalletTypeLocalStorageKey,
@@ -21,6 +21,14 @@ import ManageBondModal from "../../components/ManageBonModal";
 import { useKeplr } from "../../features/accounts/useKeplr";
 import { ChainConfigs, ChainTypes } from "../../constants/ChainTypes";
 
+type TRowDataDetailInfo = {
+	rewardToken?: TokenType;
+	pendingReward: number;
+	bonded: number;
+	stakingAddress: string;
+	priceInUsd: number;
+};
+
 const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 	rowData,
 	focus,
@@ -31,6 +39,7 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 	const [isPendingClaim, setIsPendingClaim] = useState(false);
 	const [isOpenManageBondModal, setIsOpenManageBondModal] = useState(false);
 	const account = useAppSelector((state) => state.accounts.keplrAccount);
+	const tokenPrices = useAppSelector((state) => state.tokenPrices);
 	const { connect: connectKeplr } = useWalletManager();
 	const { connect: connectCosmostation } = useContext(
 		CosmostationWalletContext
@@ -51,6 +60,48 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 		}
 	}, [focus, wrapperElement]);
 
+	const rowDataDetailInfo = useMemo(() => {
+		const config = rowData.config;
+		let result: TRowDataDetailInfo[] = [];
+		if (Array.isArray(config)) {
+			result = config.map((item, index) => {
+				const pendingReward =
+					((rowData.pendingReward || []) as number[])[index] || 0;
+				const tokenPriceInUsd = item.rewardToken
+					? tokenPrices[item.rewardToken]?.market_data.current_price?.usd || 0
+					: 0;
+				return {
+					rewardToken: item.rewardToken,
+					pendingReward,
+					bonded: ((rowData.bonded || []) as number[])[index],
+					stakingAddress: ((rowData.stakingAddress || []) as string[])[index],
+					priceInUsd: pendingReward * tokenPriceInUsd,
+				};
+			});
+		} else {
+			const pendingReward = (rowData.pendingReward || 0) as number;
+			const tokenPriceInUsd = config?.rewardToken
+				? tokenPrices[config.rewardToken]?.market_data.current_price?.usd || 0
+				: 0;
+			result = [
+				{
+					rewardToken: config?.rewardToken,
+					pendingReward,
+					bonded: (rowData.bonded || 0) as number,
+					stakingAddress: (rowData.stakingAddress || "") as string,
+					priceInUsd: pendingReward * tokenPriceInUsd,
+				},
+			];
+		}
+		return result;
+	}, [
+		rowData.bonded,
+		rowData.config,
+		rowData.pendingReward,
+		rowData.stakingAddress,
+		tokenPrices,
+	]);
+
 	const handleClickConnectWalletButton = () => {
 		const ConnectedWalletType = localStorage.getItem(
 			ConnectedWalletTypeLocalStorageKey
@@ -70,12 +121,11 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 		setIsOpenManageBondModal(true);
 	};
 
-	const handleClickClaim = async () => {
-		if (isPendingClaim || !rowData.pendingReward || !rowData.stakingAddress)
-			return;
+	const handleClickClaim = async (data: TRowDataDetailInfo) => {
+		if (isPendingClaim || !data.pendingReward || !data.stakingAddress) return;
 		setIsPendingClaim(true);
 		try {
-			await runExecute(rowData.stakingAddress, {
+			await runExecute(data.stakingAddress, {
 				withdraw: {},
 			});
 			toast.success("Successfully claimed!");
@@ -88,7 +138,7 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 		}
 	};
 
-	const token2Address = TokenStatus[rowData.token2].contractAddress;
+	const token2Address = TokenStatus[rowData.token2]?.contractAddress;
 
 	return (
 		<div ref={(node) => setWrapperElement(node)} key={rowData.id}>
@@ -172,43 +222,57 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 						<Text color="black" justifyContent="flex-start" bold>
 							TOKEN REWARDS
 						</Text>
-						{rowData.config?.rewardToken ? (
-							<Flex
-								alignItems="center"
-								//  alignItems="flex-start"
-								gap="10px"
-							>
-								{/* <Text color="black" flexDirection="column">
-									{account ? (
-										<>
-											<Text color="black" bold>
-												{addSuffix(rowData.pendingReward || 0)}
-											</Text>
-											<Text color="black">365 USD</Text>
-										</>
-									) : (
-										"0.0000"
-									)}
-								</Text> */}
-								<Text color="black" bold>
-									{addSuffix(rowData.pendingReward || 0)}
-								</Text>
-								<Flex gap="10px" alignItems="center">
-									<img
-										width={25}
-										alt=""
-										src={`/coin-images/${rowData.config.rewardToken.replace(
-											/\//g,
-											""
-										)}.png`}
-									/>
-									<Text color="black">
-										{getTokenName(rowData.config.rewardToken)}
-									</Text>
-								</Flex>
-								<Button onClick={handleClickClaim}>
-									{isPendingClaim ? "Claiming" : "Claim"}
-								</Button>
+						{rowDataDetailInfo.length > 0 ? (
+							<Flex flexDirection="column" gap="20px" width="100%">
+								{rowDataDetailInfo.map(
+									(detailInfo, index) =>
+										detailInfo.rewardToken && (
+											<Flex
+												key={index}
+												alignItems="center"
+												justifyContent="space-between"
+												gap="10px"
+												width="100%"
+											>
+												<Text
+													flexDirection="column"
+													alignItems="flex-end"
+													gap="2px"
+												>
+													<Text
+														color="black"
+														bold
+														title={"" + (detailInfo.pendingReward || 0)}
+													>
+														{addSuffix(detailInfo.pendingReward || 0)}
+													</Text>
+													<SmallText
+														color="black"
+														letterSpacing="-1px"
+														title={"" + detailInfo.priceInUsd}
+													>
+														{`(${addSuffix(detailInfo.priceInUsd)} USD)`}
+													</SmallText>
+												</Text>
+												<Flex gap="5px" alignItems="center">
+													<img
+														width={25}
+														alt=""
+														src={`/coin-images/${detailInfo.rewardToken.replace(
+															/\//g,
+															""
+														)}.png`}
+													/>
+													<SmallText color="black" bold letterSpacing="-2px">
+														{getTokenName(detailInfo.rewardToken)}
+													</SmallText>
+												</Flex>
+												<Button onClick={() => handleClickClaim(detailInfo)}>
+													{isPendingClaim ? "Claiming" : "Claim"}
+												</Button>
+											</Flex>
+										)
+								)}
 							</Flex>
 						) : (
 							<Text color="black" justifyContent="flex-start">
@@ -229,23 +293,17 @@ const BondTableDetailRow: React.FC<{ rowData: TPool; focus: boolean }> = ({
 								Bond
 							</Text>
 							<Flex gap="30px">
-								{/* <Text flexDirection="column">
-									<Text color="black">{`${addSuffix(
-										rowData.balance || 0
-									)} LP Available`}</Text>
-									<Text color="black">30065 USD</Text>
-								</Text>
-								<Text flexDirection="column">
-									<Text color="black">{`${addSuffix(
-										rowData.bonded || 0
-									)} LP Bonded`}</Text>
-									<Text color="black">30065 USD</Text>
-								</Text> */}
 								<Text color="black">{`${addSuffix(
 									rowData.balance || 0
 								)} LP Available`}</Text>
 								<Text color="black">{`${addSuffix(
-									rowData.bonded || 0
+									rowDataDetailInfo.reduce(
+										(result, crrValue) => ({
+											...crrValue,
+											bonded: (result.bonded || 0) + crrValue.bonded,
+										}),
+										{ bonded: 0 }
+									).bonded
 								)} LP Bonded`}</Text>
 							</Flex>
 							<Button onClick={handleClickBondManageModal}>
