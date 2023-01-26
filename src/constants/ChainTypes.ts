@@ -36,7 +36,7 @@ export const ChainConfigs: { [key in ChainTypes]: ConfigType } = {
 		chainName: "Juno Mainnet",
 		chainId: "juno-1",
 		// rpcEndpoint: "https://rpc.juno.strange.love/",
-		rpcEndpoint: "https://rpc-juno.itastakers.com/",
+		rpcEndpoint: "https://chimera.cryptolfdm.com:26657/",
 		// rpcEndpoint: "https://juno-rpc.reece.sh/",
 		// rpcEndpoint: "https://juno-rpc-cache.reece.sh/",
 		// rpcEndpoint: "https://rpc-juno.mib.tech/",
